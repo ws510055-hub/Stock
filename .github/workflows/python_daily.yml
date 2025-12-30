@@ -17,12 +17,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
+          # 👇 這裡改成 3.10 (解決 yfinance 報錯的關鍵)
           python-version: '3.10'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # 重點：必須包含 yfinance, lxml, html5lib
+          # 確保有安裝 yfinance
           pip install pandas requests selenium webdriver-manager yfinance lxml html5lib
 
       - name: Run Stock Bot
