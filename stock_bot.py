@@ -32,7 +32,6 @@ def send_line(msg):
         'Authorization': f'Bearer {LINE_ACCESS_TOKEN}'
     }
     payload = {'to': LINE_USER_ID, 'messages': [{'type': 'text', 'text': msg}]}
-    # 包在 try-except 避免連網路失敗程式崩潰
     try:
         requests.post('https://api.line.me/v2/bot/message/push', headers=headers, data=json.dumps(payload), verify=False)
     except:
@@ -55,14 +54,11 @@ def get_goodinfo_data_selenium():
     try:
         print("🔗 連線 Goodinfo...")
         driver.get(TARGET_URL)
-        time.sleep(15) # 等待載入
+        time.sleep(15)
         
-        # 1. 檢查網頁標題 (Debug 用)
-        print(f"📄 Page Title: {driver.title}")
         if "Access Denied" in driver.title or "無法連上" in driver.title:
             return "BLOCKED", None, None, None
 
-        # 2. 嘗試讀取表格
         try:
             dfs = pd.read_html(driver.page_source)
         except ValueError:
@@ -77,7 +73,7 @@ def get_goodinfo_data_selenium():
         if target_df is None:
             return "NO_MATCH", None, None, None
 
-        # 3. 資料清理
+        # 資料清理
         df = target_df.copy()
         df = df[df['名稱'] != '名稱']
         df.columns = [str(c).replace("('", "").replace("')", "").replace(",", "") for c in df.columns]
@@ -85,7 +81,6 @@ def get_goodinfo_data_selenium():
         for col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '').str.replace('+', '').str.replace('↘', '').str.replace('↗', '')
         
-        # 4. 找欄位
         try:
             vol_col = [c for c in df.columns if '張數' in c][0]
             price_col = [c for c in df.columns if '成交' in c and '張' not in c and '值' not in c][0]
@@ -109,7 +104,6 @@ def check_theme_score(row, vol_col):
     score = vol / 10000 
     tag = ""
     
-    # 檢查股名是否命中關鍵字
     for k in HOT_KEYWORDS:
         if k in name:
             score += 10
@@ -118,17 +112,11 @@ def check_theme_score(row, vol_col):
     return score, tag
 
 def get_sector_from_yf(code):
-    # 輔助函式：用 yfinance 查產業 (加上防呆)
     try:
         ticker = yf.Ticker(f"{code}.TW")
-        # 簡單檢查一下是否有 news，有就代表抓到了
-        if ticker.news:
-            return ticker.news[0]['title']
-        
-        # 沒抓到試試看上櫃
+        if ticker.news: return ticker.news[0]['title']
         ticker = yf.Ticker(f"{code}.TWO")
-        if ticker.news:
-            return ticker.news[0]['title']
+        if ticker.news: return ticker.news[0]['title']
     except:
         pass
     return ""
@@ -136,76 +124,20 @@ def get_sector_from_yf(code):
 def main():
     print("開始執行...")
     status, df, vol_col, price_col = get_goodinfo_data_selenium()
-    
     today = time.strftime("%Y/%m/%d")
 
-    # --- 錯誤處理區 (傳 LINE 告知失敗原因) ---
-    if status == "BLOCKED":
-        send_line(f"⚠️ {today} 執行失敗：雲端 IP 被 Goodinfo 封鎖。")
-        return
-    elif status == "NO_TABLE" or status == "NO_MATCH":
-        send_line(f"📊 {today} 策略執行完成：今日無符合「KD金叉+爆量+站月線」之股票。")
-        return
-    elif status != "SUCCESS":
-        send_line(f"⚠️ {today} 執行錯誤，代碼: {status}。請檢查 GitHub Logs。")
+    if status != "SUCCESS":
+        if status == "BLOCKED": send_line(f"⚠️ {today} 失敗：Goodinfo 封鎖 IP。")
+        elif status in ["NO_TABLE", "NO_MATCH"]: send_line(f"📊 {today} 無符合策略之股票。")
+        else: send_line(f"⚠️ {today} 執行錯誤: {status}")
         return
         
-    # --- 成功取得資料，開始分析 ---
-    # 1. 初步過濾
+    # --- 1. 初步過濾 (價>10, 量>800) ---
     candidates = df[(df[vol_col] > 800) & (df[price_col] > 10)].copy()
     
     if candidates.empty:
-        send_line(f"📊 {today} 篩選後無量大(>800張)標的。")
+        send_line(f"📊 {today} 篩選後無量大標的。")
         return
 
-    # 2. 取前 15 名做詳細檢查
-    top_15 = candidates.sort_values(by=vol_col, ascending=False).head(15)
-    
-    final_list = []
-    
-    for index, row in top_15.iterrows():
-        code = row['代號']
-        name = row['名稱']
-        
-        score, tag = check_theme_score(row, vol_col)
-        
-        # 如果沒標籤，用 yfinance 查新聞 (只查前15名避免超時)
-        if not tag:
-            news_title = get_sector_from_yf(code)
-            for k in HOT_KEYWORDS:
-                if k in news_title:
-                    score += 5
-                    tag = k
-                    break
-        
-        final_list.append({
-            'code': code,
-            'name': name,
-            'price': row[price_col],
-            'vol': row[vol_col],
-            'score': score,
-            'tag': tag
-        })
-        
-    # 3. 排序取前 3
-    final_df = pd.DataFrame(final_list)
-    best_3 = final_df.sort_values(by='score', ascending=False).head(3)
-
-    msg = f"🔥 【Goodinfo 強勢題材股】 {today}\n"
-    msg += "策略：KD金叉 + 爆量 + 站月線 + 題材\n\n"
-    
-    for idx, row in best_3.iterrows():
-        icon = "🔥" if row['tag'] else "🔴"
-        tag_str = f"[{row['tag']}]" if row['tag'] else ""
-        
-        msg += f"{icon} {row['name']} ({row['code']}) {tag_str}\n"
-        msg += f"   💰 股價: {row['price']}\n"
-        msg += f"   📊 張數: {int(row['vol'])}\n"
-        msg += f"   🚀 訊號: 強勢起漲\n\n"
-        
-    msg += "(Github Actions 自動執行)"
-    send_line(msg)
-    print("執行完成，已發送 LINE。")
-
-if __name__ == "__main__":
-    main()
+    # --- 2. 排序並取前 20 名做詳細檢查 ---
+    top_candidates = candidates.sort_values(by=vol_col, ascending=False).head(20)
