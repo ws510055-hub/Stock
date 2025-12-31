@@ -2,7 +2,7 @@ name: Daily Stock Check
 
 on:
   schedule:
-    # 台灣時間 16:01 (UTC 08:01)
+    # 台灣時間 16:03 (UTC 08:03)
     - cron: '03 8 * * *'
   workflow_dispatch:
 
