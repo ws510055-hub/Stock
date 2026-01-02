@@ -133,6 +133,21 @@ def get_sector_from_yf(code):
         pass
     return ""
 
+# --- 🚫 關鍵：黑名單過濾函式 (金融/生技) ---
+def is_blacklisted(code, name):
+    # 1. 金融股：通常 28 開頭，或名稱含關鍵字
+    if code.startswith('28'): return True
+    fin_keywords = ['金控', '銀行', '人壽', '保險', '證券', '票券', '產險']
+    for k in fin_keywords:
+        if k in name: return True
+        
+    # 2. 生技股：名稱含關鍵字
+    bio_keywords = ['生技', '生醫', '藥', '醫', '基因', '疫苗']
+    for k in bio_keywords:
+        if k in name: return True
+        
+    return False
+
 def main():
     print("開始執行...")
     status, df, vol_col, price_col = get_goodinfo_data_selenium()
@@ -164,17 +179,21 @@ def main():
     final_list = []
     
     for index, row in top_15.iterrows():
-        code = row['代號']
+        # 確保代號是字串且乾淨
+        code = str(row['代號']).strip()
         name = row['名稱']
+        
+        # 🔥 過濾條件 A: ETF 殺手 🔥
+        # 踢掉 '0' 開頭 (如 0050, 00940) 或 非4碼
+        if code.startswith('0') or len(code) != 4:
+            continue
+
+        # 🔥 過濾條件 B: 金融/生技殺手 (新增) 🔥
+        if is_blacklisted(code, name):
+            continue
         
         score, tag = check_theme_score(row, vol_col)
 
-        # 🔥 ETF 殺手邏輯 🔥
-        # 1. 踢掉 '0' 開頭 (如 0050, 00940)
-        # 2. 踢掉長度不是 4 碼的 (權證、特別股、債券)
-        if code.startswith('0') or len(code) != 4:
-            continue
-        
         # 如果沒標籤，用 yfinance 查新聞 (只查前15名避免超時)
         if not tag:
             news_title = get_sector_from_yf(code)
@@ -194,11 +213,15 @@ def main():
         })
         
     # 3. 排序取前 3
+    if not final_list:
+        send_line(f"📊 {today} 經過濾(ETF/金融/生技)後，無符合標的。")
+        return
+
     final_df = pd.DataFrame(final_list)
     best_3 = final_df.sort_values(by='score', ascending=False).head(3)
 
-    msg = f"🔥 【Goodinfo 強勢題材股】 {today}\n"
-    msg += "策略：KD金叉 + 爆量 + 站月線 + 題材\n\n"
+    msg = f"🔥 【Goodinfo 強勢精選】 {today}\n"
+    msg += "策略：KD金叉+爆量+題材 (去ETF/金融/生技)\n\n"
     
     for idx, row in best_3.iterrows():
         icon = "🔥" if row['tag'] else "🔴"
