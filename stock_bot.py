@@ -14,7 +14,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- 設定區 (維持您的設定) ---
-LINE_ACCESS_TOKEN = 'EbEgyG52sePy8BeieKun2lHDJDBLr9N8H9ORHORCZd6vAhSYaTr8raat3W2sVHImc7kdTATt0uq2+kMPB0SUEL2PO26hegmO6oxMRruuqNmIdujHEsS7heVbOFtnC0+mFOepeixszQkywbXhTz2TEwdB04t89/1O/w1cDnyilFU='
+LINE_ACCESS_TOKEN = 'sNBWDLC4B851HYdWaGl8dftBZXCUBb5AHUhXdchaqvRPQLqbalXa2BAf5tG9tqQGc7kdTATt0uq2+kMPB0SUEL2PO26hegmO6oxMRruuqNlwWeHStg/lGk67HPp4PEIm66eQ1vkyPejPZZDqOes6bwdB04t89/1O/w1cDnyilFU='
 LINE_USER_ID = 'U7f344cc462b486e48afcd88dc3a64343'
 
 # Goodinfo 篩選網址
