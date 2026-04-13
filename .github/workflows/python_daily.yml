@@ -1,4 +1,4 @@
-name: CI
+name: Daily Stock Check
 on: [push, workflow_dispatch]
 
 env:
@@ -14,26 +14,13 @@ jobs:
         with:
           python-version: '3.10'
       # 其他步骤...
-name: Daily Stock Check
 
-on:
   schedule:
     # 台灣時間 15:43 (UTC 7:43)
     - cron: '43 7 * * *'
   workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4  # 更新到 v4
-      - name: Set up Python
-        uses: actions/setup-python@v5  # 更新到 v5
-        with:
-          # 👇 這裡改成 3.10 (解決 yfinance 報錯的關鍵)
-          python-version: '3.10'
 
       - name: Install dependencies
         run: |
